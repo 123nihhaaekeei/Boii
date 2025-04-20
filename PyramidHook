@@ -1,0 +1,212 @@
+-- [[ Services ]] --
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInput = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local MainEvent = ReplicatedStorage:WaitForChild("MainEvent")
+
+-- [[ Config ]] --
+local ForceHit = {
+    Enabled = false,
+    HitPart = "Head",
+    FOVRadius = 400
+}
+
+-- [[ UI ]] --
+local sigmaGui = Instance.new("ScreenGui")
+local ImageButton = Instance.new("ImageButton")
+local UiCorner = Instance.new("UICorner")
+
+sigmaGui.Name = "sigmaGui"
+sigmaGui.Parent = CoreGui
+sigmaGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+sigmaGui.ResetOnSpawn = false
+
+ImageButton.Name = "ImageButton"
+ImageButton.Parent = sigmaGui
+ImageButton.Active = true
+ImageButton.Draggable = true
+ImageButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+ImageButton.BackgroundTransparency = 0.35
+ImageButton.Size = UDim2.new(0, 90, 0, 90)
+ImageButton.Position = UDim2.new(0.5, -45, 0.5, -45)
+ImageButton.Image = "rbxassetid://139320227443826"
+
+UiCorner.CornerRadius = UDim.new(0.2, 0)
+UiCorner.Parent = ImageButton
+
+-- [[ Highlight ]] --
+local Highlight = Instance.new("Highlight")
+Highlight.FillColor = Color3.fromRGB(255, 255, 255)
+Highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+Highlight.FillTransparency = 0.5
+Highlight.OutlineTransparency = 0
+Highlight.Enabled = false
+Highlight.Parent = CoreGui
+
+-- [[ State ]] --
+local LockedTarget = nil
+local CachedClosestPlayer = nil
+
+-- [[ Get Closest Player ]] --
+local function GetClosestPlayer()
+    local MousePos = UserInput:GetMouseLocation()
+    local ClosestDist, ClosestPart, ClosestChar = math.huge, nil, nil
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(ForceHit.HitPart) then
+            local part = player.Character[ForceHit.HitPart]
+            local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
+            if onScreen then
+                local dist = (Vector2.new(screenPos.X, screenPos.Y) - MousePos).Magnitude
+                if dist < ClosestDist and dist <= ForceHit.FOVRadius then
+                    ClosestDist = dist
+                    ClosestPart = part
+                    ClosestChar = player.Character
+                end
+            end
+        end
+    end
+
+    return ClosestPart, ClosestChar
+end
+
+-- [[ Toggle Aimlock ]] --
+local function toggleForceHit()
+    ForceHit.Enabled = not ForceHit.Enabled
+
+    if ForceHit.Enabled then
+        local part, char = GetClosestPlayer()
+        if part and char then
+            LockedTarget = char
+            CachedClosestPlayer = part
+            Highlight.Adornee = char
+            Highlight.Enabled = true
+        else
+            ForceHit.Enabled = false
+            LockedTarget = nil
+            CachedClosestPlayer = nil
+            Highlight.Enabled = false
+        end
+    else
+        LockedTarget = nil
+        CachedClosestPlayer = nil
+        Highlight.Enabled = false
+    end
+end
+
+-- [[ Button Toggle ]] --
+ImageButton.MouseButton1Click:Connect(toggleForceHit)
+
+-- [[ Key Toggle (C) ]] --
+UserInput.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.C then
+        toggleForceHit()
+    end
+end)
+
+-- [[ Update Target If Dead or Out of FOV ]] --
+RunService.RenderStepped:Connect(function()
+    if ForceHit.Enabled then
+        local humanoid = LockedTarget and LockedTarget:FindFirstChildOfClass("Humanoid")
+        if not LockedTarget or not humanoid or humanoid.Health <= 0 then
+            local newPart, newChar = GetClosestPlayer()
+            if newChar then
+                LockedTarget = newChar
+                CachedClosestPlayer = newPart
+                Highlight.Adornee = newChar
+                Highlight.Enabled = true
+            else
+                ForceHit.Enabled = false
+                LockedTarget = nil
+                CachedClosestPlayer = nil
+                Highlight.Enabled = false
+            end
+        end
+    end
+end)
+
+-- [[ Ultra Fast Fire Loop Using RenderStepped ]] --
+RunService.RenderStepped:Connect(function()
+    if ForceHit.Enabled then
+        if LockedTarget and LockedTarget:FindFirstChild(ForceHit.HitPart) then
+            local humanoid = LockedTarget:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 and not LockedTarget:FindFirstChildOfClass("ForceField") then
+                local AimPart = LockedTarget[ForceHit.HitPart]
+
+                local args = {
+                    "Shoot",
+                    {
+                        {
+                            [1] = {["Instance"] = AimPart, ["Normal"] = Vector3.new(), ["Position"] = AimPart.Position},
+                            [2] = {["Instance"] = AimPart, ["Normal"] = Vector3.new(), ["Position"] = AimPart.Position},
+                            [3] = {["Instance"] = AimPart, ["Normal"] = Vector3.new(), ["Position"] = AimPart.Position},
+                            [4] = {["Instance"] = AimPart, ["Normal"] = Vector3.new(), ["Position"] = AimPart.Position},
+                            [5] = {["Instance"] = AimPart, ["Normal"] = Vector3.new(), ["Position"] = AimPart.Position}
+                        },
+                        {
+                            [1] = {["thePart"] = AimPart, ["theOffset"] = CFrame.new()},
+                            [2] = {["thePart"] = AimPart, ["theOffset"] = CFrame.new()},
+                            [3] = {["thePart"] = AimPart, ["theOffset"] = CFrame.new()},
+                            [4] = {["thePart"] = AimPart, ["theOffset"] = CFrame.new()},
+                            [5] = {["thePart"] = AimPart, ["theOffset"] = CFrame.new()}
+                        },
+                        LocalPlayer.Character.Head.Position,
+                        LocalPlayer.Character.Head.Position,
+                        workspace:GetServerTimeNow()
+                    }
+                }
+
+                MainEvent:FireServer(unpack(args))
+            end
+        end
+    end
+end)
+
+-- [[ Mobile Tap Force Hit with Ultra Fast Fire Loop ]] --
+RunService.RenderStepped:Connect(function()
+    -- Only proceed if we're on mobile and ForceHit is enabled
+    if UserInput.TouchEnabled and ForceHit.Enabled then
+        -- Check if the screen tap is detected
+        if UserInput:IsMouseButtonPressed(Enum.UserInputType.Touch) then
+            -- Ensure the locked target and the part we want to hit exist
+            if LockedTarget and LockedTarget:FindFirstChild(ForceHit.HitPart) then
+                local AimPart = LockedTarget[ForceHit.HitPart]
+                local humanoid = LockedTarget:FindFirstChildOfClass("Humanoid")
+
+                -- If the humanoid exists, is alive, and the target is not protected by ForceField
+                if humanoid and humanoid.Health > 0 and not LockedTarget:FindFirstChildOfClass("ForceField") then
+                    -- Prepare the args for shooting
+                    local args = {
+                        "Shoot",
+                        {
+                            {["Instance"] = AimPart, ["Normal"] = Vector3.new(), ["Position"] = AimPart.Position},
+                            {["Instance"] = AimPart, ["Normal"] = Vector3.new(), ["Position"] = AimPart.Position},
+                            {["Instance"] = AimPart, ["Normal"] = Vector3.new(), ["Position"] = AimPart.Position},
+                            {["Instance"] = AimPart, ["Normal"] = Vector3.new(), ["Position"] = AimPart.Position},
+                            {["Instance"] = AimPart, ["Normal"] = Vector3.new(), ["Position"] = AimPart.Position}
+                        },
+                        {
+                            {["thePart"] = AimPart, ["theOffset"] = CFrame.new()},
+                            {["thePart"] = AimPart, ["theOffset"] = CFrame.new()},
+                            {["thePart"] = AimPart, ["theOffset"] = CFrame.new()},
+                            {["thePart"] = AimPart, ["theOffset"] = CFrame.new()},
+                            {["thePart"] = AimPart, ["theOffset"] = CFrame.new()}
+                        },
+                        LocalPlayer.Character.Head.Position,
+                        LocalPlayer.Character.Head.Position,
+                        workspace:GetServerTimeNow()
+                    }
+
+                    -- Fire the server event for shooting
+                    MainEvent:FireServer(unpack(args))
+                end
+            end
+        end
+    end
+end)
